@@ -1,0 +1,141 @@
+import org.apache.tools.ant.filters.FixCrLfFilter
+
+import java.security.MessageDigest
+
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    compileSdk 31
+    defaultConfig {
+        applicationId "rikka.fontloader"
+        minSdk 31
+        targetSdk 31
+        versionCode 1
+        versionName "1.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        externalNativeBuild {
+            cmake {
+                arguments '-DANDROID_STL=none'
+            }
+        }
+    }
+    buildFeatures {
+        buildConfig false
+        prefab true
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    externalNativeBuild {
+        cmake {
+            path file('src/main/cpp/CMakeLists.txt')
+            version '3.10.2'
+        }
+    }
+}
+
+dependencies {
+    implementation 'dev.rikka.ndk.thirdparty:cxx:1.2.0'
+    implementation 'dev.rikka.ndk.thirdparty:nativehelper:1.0.1'
+    implementation 'dev.rikka.ndk.thirdparty:proc-maps-parser:1.0.0'
+}
+
+afterEvaluate {
+    def isIDE = properties.containsKey('android.injected.invoked.from.ide')
+    if (isIDE) {
+        println("Invoked from IDE")
+    } else {
+        println("Invoked from command line")
+    }
+
+    android.applicationVariants.all { variant ->
+        def outDir = file("$rootDir/out")
+        def variantCapped = variant.name.capitalize()
+        def variantLowered = variant.name.toLowerCase()
+        def buildTypeCapped = variant.getBuildType().getName().capitalize()
+        def buildTypeLowered = variant.getBuildType().getName().toLowerCase()
+
+        def zipName = "font-loader-${moduleVersionName}-${buildTypeLowered}.zip"
+        def magiskDir = file("$outDir/${buildTypeLowered}")
+
+        task("prepareMagiskFiles${variantCapped}", type: Sync) {
+            dependsOn("assemble$variantCapped")
+
+            def templatePath = "$rootDir/template/magisk_module"
+
+            into magiskDir
+            from(templatePath) {
+                exclude 'module.prop'
+            }
+            from(templatePath) {
+                include 'module.prop'
+                expand([
+                        id         : moduleId,
+                        name       : moduleName,
+                        version    : moduleVersionName,
+                        versionCode: moduleVersionCode.toString(),
+                        author     : moduleAuthor,
+                        description: moduleDescription,
+                ])
+                filter(FixCrLfFilter.class,
+                        eol: FixCrLfFilter.CrLf.newInstance("lf"))
+            }
+            /*from((buildTypeLowered == "release") ?
+                    "$buildDir/intermediates/dex/${variant.name}/minify${variantCapped}WithR8" :
+                    "$buildDir/intermediates/dex/${variant.name}/mergeDex$variantCapped") {
+                include 'classes.dex'
+                rename { 'sui.dex' }
+            }*/
+            from("$buildDir/intermediates/stripped_native_libs/${variant.name}/out/lib") {
+                into 'lib'
+            }
+            doLast {
+                fileTree("$magiskDir").visit { f ->
+                    if (f.directory) return
+                    if (f.file.name == '.gitattributes') return
+
+                    def md = MessageDigest.getInstance("SHA-256")
+                    f.file.eachByte 4096, { bytes, size ->
+                        md.update(bytes, 0, size)
+                    }
+                    file(f.file.path + ".sha256sum").text = md.digest().encodeHex()
+                }
+            }
+        }
+
+        task("zip${variantCapped}", type: Zip) {
+            dependsOn("prepareMagiskFiles${variantCapped}")
+            from magiskDir
+            archiveName zipName
+            destinationDir outDir
+        }
+
+        task("push${variantCapped}", type: Exec) {
+            dependsOn("assemble${variantCapped}")
+            workingDir outDir
+            commandLine android.adbExecutable, "push", zipName, "/data/local/tmp/"
+        }
+
+        task("flash${variantCapped}", type: Exec) {
+            dependsOn("push${variantCapped}")
+            commandLine android.adbExecutable, "shell", "su", "-c",
+                    "magisk --install-module /data/local/tmp/${zipName}"
+        }
+
+        task("flashAndReboot${variantCapped}", type: Exec) {
+            dependsOn("flash${variantCapped}")
+            commandLine android.adbExecutable, "shell", "reboot"
+        }
+
+        variant.assembleProvider.get().finalizedBy("zip${variantCapped}")
+    }
+}
