@@ -18,7 +18,7 @@ Shamiko is a close-sourced hide module created by other people. Currently, it ha
 
 ## Something else
 
-* Why use the font upgrade feature from Android 12?
+* Why not using the font upgrade feature from Android 12?
 
   The font upgrade feature cannot set the default font-weight and language. Therefore it can only be used to upgrade/add a font with a single font-weight like emoji font. This is exactly how it is used in the documentation.
 
