@@ -120,9 +120,9 @@ private:
         auto s = parse_mount_info();
         for (auto mnt = s.begin(); mnt != s.end(); mnt++) {
             if (mnt->device == st.st_dev && (starts_with((mnt->target).data(), "/system/fonts/") || 
-                starts_with((mnt->target).data(), "/system/product/") || starts_with((mnt->target).data(), "/system/vendor/") ||
-                starts_with((mnt->target).data(), "/product/") || starts_with((mnt->target).data(), "/vendor/"))) {
-                LOGI("font file: %s\n", (mnt->target).data());
+                starts_with((mnt->target).data(), "/system/product/fonts/") || starts_with((mnt->target).data(), "/system/vendor/fonts/") ||
+                starts_with((mnt->target).data(), "/product/fonts/") || starts_with((mnt->target).data(), "/vendor/fonts/"))) {
+                LOGI("Found Font file: %s\n", (mnt->target).data());
                 fonts.emplace_back(mnt->target);
             }
         }
