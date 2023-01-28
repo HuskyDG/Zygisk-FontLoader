@@ -25,7 +25,7 @@ find_package(cxx REQUIRED CONFIG)
 find_package(nativehelper REQUIRED CONFIG)
 find_package(proc-maps-parser REQUIRED CONFIG)
 
-add_library(fontloader SHARED main.cpp misc.cpp)
+add_library(fontloader SHARED main.cpp misc.cpp mountinfo.cpp)
 
 target_link_libraries(fontloader
         log

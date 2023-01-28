@@ -11,9 +11,11 @@
 #include <string_view>
 #include <dirent.h>
 #include <private/ScopedReaddir.h>
+#include <sys/stat.h>
 #include "logging.h"
 #include "zygisk.hpp"
 #include "misc.h"
+#include "mountinfo.hpp"
 
 using zygisk::Api;
 using zygisk::AppSpecializeArgs;
@@ -112,88 +114,23 @@ private:
     std::vector<std::string> fonts;
 
     void InitCompanion() {
-        auto companion = api->connectCompanion();
-        if (companion == -1) {
-            LOGE("Failed to connect to companion");
+        struct stat st;
+        if (stat("/data", &st))
             return;
-        }
-
-        char path[PATH_MAX]{};
-        auto size = read_int(companion);
-        for (int i = 0; i < size; ++i) {
-            auto string_size = read_int(companion);
-            read_full(companion, path, string_size);
-            fonts.emplace_back(path);
-        }
-
-        close(companion);
-    }
-};
-
-static bool PrepareCompanion(std::vector<std::string> &fonts) {
-    bool result = false;
-    char path[PATH_MAX]{};
-    struct dirent *entry;
-
-    ScopedReaddir modules("/data/adb/modules/");
-    if (modules.IsBad()) goto clean;
-
-    while ((entry = modules.ReadEntry())) {
-        if (entry->d_type != DT_DIR) continue;
-        if (entry->d_name[0] == '.') continue;
-
-        snprintf(path, PATH_MAX, "/data/adb/modules/%s/disable", entry->d_name);
-        if (access(path, F_OK) == 0) {
-            LOGV("Module %s is disabled", entry->d_name);
-            continue;
-        }
-
-        snprintf(path, PATH_MAX, "/data/adb/modules/%s/system/fonts", entry->d_name);
-        if (access(path, F_OK) != 0) {
-            LOGV("Module %s does not contain font", entry->d_name);
-            continue;
-        }
-
-        ScopedReaddir dir(path);
-        if (dir.IsBad()) {
-            LOGW("Cannot open %s", path);
-            continue;
-        }
-
-        while ((entry = dir.ReadEntry())) {
-            if (entry->d_type != DT_REG) continue;
-            if (entry->d_name[0] == '.') continue;
-
-            snprintf(path, PATH_MAX, "/system/fonts/%s", entry->d_name);
-            if (access(path, F_OK) == 0) {
-                fonts.emplace_back(path);
-                LOGI("Collected font %s", path);
-            } else {
-                LOGW("Font %s does not exist", path);
+        auto s = parse_mount_info();
+        for (auto mnt = s.begin(); mnt != s.end(); mnt++) {
+            if (mnt->device == st.st_dev && (starts_with((mnt->target).data(), "/system/fonts/") || 
+                starts_with((mnt->target).data(), "/system/product/") || starts_with((mnt->target).data(), "/system/vendor/") ||
+                starts_with((mnt->target).data(), "/product/") || starts_with((mnt->target).data(), "/vendor/"))) {
+                LOGI("font file: %s\n", (mnt->target).data());
+                fonts.emplace_back(mnt->target);
             }
         }
     }
-
-    result = true;
-
-    clean:
-    return result;
-}
+};
 
 static void CompanionEntry(int socket) {
-    static std::vector<std::string> fonts;
-    static auto prepare = PrepareCompanion(fonts);
-
-    write_int(socket, fonts.size());
-
-    for (const std::string &font: fonts) {
-        auto size = font.size();
-        auto array = font.c_str();
-        write_int(socket, size);
-        write_full(socket, array, size);
-    }
-
-    close(socket);
+    return;
 }
 
 REGISTER_ZYGISK_MODULE(ZygiskModule)
