@@ -14,7 +14,7 @@ This module is a Zygisk module that is designed to solve the problem. The princi
 
 To be clear, DenyList is NOT for hide purposes. This is as topjohnwu, the author of Magisk, said. And using DenyList for hiding is not enough.
 
-Shamiko is a close-sourced hide module created by other people. Currently, it has not yet been widely released, you can download Shamiko from https://t.me/magiskalpha/388.
+Shamiko is a close-sourced hide module created by other people. Currently, it has not yet been widely released, you can download Shamiko from <https://github.com/LSPosed/LSPosed.github.io/releases/latest>.
 
 ## Something else
 
