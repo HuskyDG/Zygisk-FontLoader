@@ -97,10 +97,16 @@ public:
     }
 
     void preAppSpecialize(AppSpecializeArgs *args) override {
-        InitCompanion();
-        PreloadFonts(env, fonts);
-        HideFromMaps(fonts);
+        const char *rawProcess = env->GetStringUTFChars(args->nice_name, nullptr);
+        if (rawProcess != nullptr) {
+            std::string process(rawProcess);
+            env->ReleaseStringUTFChars(args->nice_name, rawProcess);
 
+            if (args->uid > 1000 && InitCompanion(process.data())) {
+                PreloadFonts(env, fonts);
+                HideFromMaps(fonts);
+            }
+        }
         api->setOption(zygisk::Option::DLCLOSE_MODULE_LIBRARY);
     }
 
@@ -113,10 +119,13 @@ private:
     JNIEnv *env{};
     std::vector<std::string> fonts;
 
-    void InitCompanion() {
+    bool InitCompanion(const char *process) {
         struct stat st;
         if (stat("/data", &st))
-            return;
+            return false;
+        uint32_t flags = api->getFlags();
+        if ((flags & zygisk::PROCESS_ON_DENYLIST) == 0) return false;
+        LOGI("[%s] is on denylist\n", process);
         auto s = parse_mount_info();
         for (auto mnt = s.begin(); mnt != s.end(); mnt++) {
             if (mnt->device == st.st_dev && (starts_with((mnt->target).data(), "/system/fonts/") || 
@@ -126,6 +135,7 @@ private:
                 fonts.emplace_back(mnt->target);
             }
         }
+        return true;
     }
 };
 

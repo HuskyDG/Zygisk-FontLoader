@@ -28,6 +28,6 @@ ext {
     moduleName = 'Font Loader'
     moduleDescription = 'Preload font modules for Android 12. Do not enable useless DenyList and use hide module for hiding ROOT instead!'
     moduleAuthor = 'Rikka, HuskyDG'
-    moduleVersionName = '1.0.1'
-    moduleVersionCode = 2
+    moduleVersionName = '1.0.2'
+    moduleVersionCode = 3
 }
